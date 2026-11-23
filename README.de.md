@@ -6,6 +6,8 @@ Dieses Repository enthält Quellcode und App-Grafiken. Persönliche Stimmaufnahm
 
 ## Starten
 
+**[Sidecast 0.2.8 für Windows herunterladen](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.8/Sidecast-0.2.8-portable.exe)** — signierte portable EXE, kein Installer nötig. Eine ältere laufende Version vorher über das Tray beenden; deine lokalen Einstellungen bleiben erhalten.
+
 Die portable Windows-Datei liegt nach `npm run dist` unter `release/Sidecast-0.2.8-portable.exe`. Kein Installer nötig. Alternativ `release/win-unpacked/Sidecast.exe` mit dem gesamten zugehörigen Ordner verwenden.
 
 Aus dem Quellcode (Node.js 24 LTS):

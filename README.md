@@ -6,6 +6,12 @@ A local Windows overlay for Streamer.bot, with themed alerts, transparent OBS br
 
 [User guide](docs/user-guide.md) · [Privacy](docs/privacy.md) · [Development](docs/development.md) · [Deutsch](README.de.md)
 
+## Windows download
+
+**[Download Sidecast 0.2.8 for Windows](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.8/Sidecast-0.2.8-portable.exe)** — signed portable EXE, no installation required.
+
+Quit any older Sidecast instance from the tray before starting the new version. Your local settings are retained. [Release notes and checksum](https://github.com/DSuzuki35/Sidecast/releases/tag/v0.2.8).
+
 ## Features
 
 - Resizable, borderless, always-on-top overlay with click-through mode.
@@ -38,7 +44,7 @@ Start Streamer.bot's WebSocket server, then connect from Sidecast's **Connection
 npm run dist
 ```
 
-The output is `release/Sidecast-0.2.8-portable.exe`. Developer builds are unsigned unless you configure your own signing certificate. This repository contains source code; local release executables are not included.
+The output is `release/Sidecast-0.2.8-portable.exe`. Developer builds are unsigned unless you configure your own signing certificate. Prebuilt downloads are distributed through GitHub Releases, separately from the source tree.
 
 ## Your voice stays local
 
