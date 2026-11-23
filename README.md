@@ -8,9 +8,9 @@ A local Windows overlay for Streamer.bot, with themed alerts, transparent OBS br
 
 ## Windows download
 
-**[Download Sidecast 0.2.8 for Windows](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.8/Sidecast-0.2.8-portable.exe)** — signed portable EXE, no installation required.
+**[Download Sidecast 0.2.9 for Windows](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.9/Sidecast-0.2.9-Setup.exe)** — signed Windows x64 installer with automatic updates.
 
-Quit any older Sidecast instance from the tray before starting the new version. Your local settings are retained. [Release notes and checksum](https://github.com/DSuzuki35/Sidecast/releases/tag/v0.2.8).
+Quit any older Sidecast instance from the tray before installing. Your local settings and private voice stay on your PC. Installed copies check for updates at startup and every six hours, download them automatically, and install when you choose **Quit** from the tray. No automatic restart during your stream. **Connection → App updates** shows progress and offers a manual check. [Release notes and checksums](https://github.com/DSuzuki35/Sidecast/releases/tag/v0.2.9).
 
 ## Features
 
@@ -38,13 +38,13 @@ npm start
 
 Start Streamer.bot's WebSocket server, then connect from Sidecast's **Connection** page. No extra Streamer.bot actions or plugins are required. See the [User guide](docs/user-guide.md).
 
-## Build a portable app
+## Build a Windows installer
 
 ```powershell
 npm run dist
 ```
 
-The output is `release/Sidecast-0.2.8-portable.exe`. Developer builds are unsigned unless you configure your own signing certificate. Prebuilt downloads are distributed through GitHub Releases, separately from the source tree.
+The output is `release/Sidecast-0.2.9-Setup.exe`. Signed builds use `release/0.2.9/` to avoid overwriting a running folder build. `npm run dist:portable` builds a portable EXE without automatic updates. Developer builds are unsigned unless you configure your own signing certificate. Prebuilt downloads are distributed through GitHub Releases, separately from the source tree.
 
 ## Your voice stays local
 

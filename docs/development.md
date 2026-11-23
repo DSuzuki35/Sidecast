@@ -50,11 +50,22 @@ Remove-Item Env:SIDECAST_EXECUTABLE
 
 ```powershell
 npm run pack         # Folder build
-npm run dist         # Unsigned portable EXE
+npm run dist         # Windows x64 NSIS installer; no automatic publishing
+npm run dist:portable # Portable EXE; no automatic updates
 npm run dist:signed  # Requires your own available signing certificate
 ```
 
 SimplySign Desktop can expose a certificate through the Windows personal store. The script selects a single valid code-signing certificate with a private key. If several exist, set `SIDECAST_SIGNING_THUMBPRINT` to your intended certificate. It verifies signatures and timestamps and fails on invalid signing. No certificate/private key/password is distributed here.
+
+## Installer and updates
+
+The NSIS wizard installs Sidecast with Start menu and desktop shortcuts. `npm run dist:signed` writes to `release/<version>/` so a running older folder build is left alone. It signs and timestamps both the application and setup, and generates `latest.yml` and the installer `.blockmap`. Never modify or re-sign the setup after generating metadata: its SHA-512 must match `latest.yml`.
+
+The pinned electron-updater 6 API checks the public `DSuzuki35/Sidecast` GitHub release feed without credentials. The installed app checks after 15 seconds and every six hours. Downloads are serialized; code signatures are checked against `Open Source Developer Daniel Sosulski`. Stable updates only; no downgrades. Installation happens on normal quit after application cleanup, with no forced relaunch. Development, portable, unpacked and `SIDECAST_DATA_DIR` test profiles never check automatically. The control window is the only IPC client allowed to request an update check.
+
+For a release, increment package/package-lock and the visible version, update download links, run tests and Claude review, build/sign, inspect the archive for private files, and verify signatures plus metadata checksums. Upload **the setup EXE, its `.blockmap`, `latest.yml`, and SHA256SUMS.txt together** to a draft GitHub release targeting the tested source commit. Verify assets, then publish as a stable release. Never publish metadata that points to a missing installer. Build commands use `--publish never` so upload remains a separate step. Future versions must keep the app ID, publisher, and feed stable. The original portable version cannot update itself; users install the setup once to migrate.
+
+Relevant checks: `node --test test/updates.test.js`, `node scripts/update-smoke.mjs`, `node scripts/verify-release.mjs`, and the normal UI suite. `node scripts/update-download-smoke.mjs` downloads the real signed installer from a local fixture, validates it through electron-updater, and checks the on-quit installer arguments with process spawning intercepted. Add `--github` after publication to verify the public feed and download instead. These checks never run setup or replace a user installation. A full installed-to-installed migration still needs a separate Windows test environment; never invent an update version on the production feed just to test it. See [electron-builder v26 auto-update documentation](https://www.electron.build/v26/docs/features/auto-update/).
 
 ## Publishing changes
 

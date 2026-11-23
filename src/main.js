@@ -13,11 +13,15 @@ import {spawn} from 'node:child_process';
 import {AudioPlayerWindow} from './audio-window.js';
 import {previewProfile,previewText} from './core/speech-preview.js';
 import {EmoteService} from './core/emotes.js';
+import {existsSync} from 'node:fs';
+import electronUpdater from 'electron-updater';
+import {UpdateService,updateEligibility} from './updates.js';
 
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 if(process.env.SIDECAST_DATA_DIR)app.setPath('userData',process.env.SIDECAST_DATA_DIR);
 app.setName('Sidecast');
 let control,overlay,tray,hub,source,config,file,connectionManager,audioService,audioPlayer,emotes,setupProcess,previewRequest,quitting=false,shortcutError='',serverError='',audioWindowError='',saveError='',saveQueue=Promise.resolve(),boundsTimer;
+let updates;
 const single=app.requestSingleInstanceLock();
 if(!single)app.quit();
 else {
@@ -28,7 +32,7 @@ function showControl(){if(control&&!control.isDestroyed()){control.show();contro
 function persist(){const snapshot={settings:structuredClone(config.settings),password:config.password,token:config.token,persistenceBlocked:config.persistenceBlocked};saveQueue=saveQueue.catch(()=>{}).then(()=>saveSettings(file,snapshot,safeStorage)).then(()=>{if(saveError){saveError='';publish();}});return saveQueue;}
 function urls(){if(!source)return {};return {...Object.fromEntries(['chat','alerts','combined'].map(mode=>[mode,`${source.origin}/overlay?token=${config.token}&mode=${mode}`])),audio:`${source.origin}/audio?token=${config.token}`};}
 function audioStatus(){return {...audioService?.status(),error:[audioService?.error,audioWindowError].filter(Boolean).join(' '),installing:!!setupProcess};}
-function controlState(){return {settings:config.settings,snapshot:hub.snapshot(),urls:urls(),audioStatus:audioStatus(),hasPassword:!!config.password,passwordPersistent:safeStorage.isEncryptionAvailable(),shortcutError,serverError,warning:[config.warning,saveError].filter(Boolean).join(' ')};}
+function controlState(){return {settings:config.settings,snapshot:hub.snapshot(),urls:urls(),audioStatus:audioStatus(),updates:updates?.snapshot(),hasPassword:!!config.password,passwordPersistent:safeStorage.isEncryptionAvailable(),shortcutError,serverError,warning:[config.warning,saveError].filter(Boolean).join(' ')};}
 function sendState(win,state){try{if(!win.webContents.isDestroyed())win.webContents.send('sidecast:changed',state);}catch{/* A closing or crashed renderer is refreshed on its next state request. */}}
 const publish=coalesce(()=>{
  if(control&&!control.isDestroyed()&&control.isVisible()&&!control.isMinimized())sendState(control,controlState());
@@ -76,6 +80,8 @@ function trusted(event,controlOnly=true){
 function handle(channel,fn,controlOnly=true){ipcMain.handle(`sidecast:${channel}`,async(event,payload)=>{trusted(event,controlOnly);return fn(payload,event);});}
 function stopSetup(){if(!setupProcess?.pid)return Promise.resolve();const pid=setupProcess.pid;return new Promise(resolve=>{const killer=spawn(join(process.env.SystemRoot||'C:\\Windows','System32','taskkill.exe'),['/PID',String(pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});killer.on('error',resolve);killer.on('close',resolve);});}
 async function start(){
+  const disabled=updateEligibility({packaged:app.isPackaged,platform:process.platform,env:process.env,installed:existsSync(join(dirname(app.getPath('exe')),'Uninstall Sidecast.exe'))});
+  updates=new UpdateService({updater:disabled?null:electronUpdater.autoUpdater,version:app.getVersion(),disabled,onChange:()=>{if(hub&&!quitting)publish();}});
   file=join(app.getPath('userData'),'settings.json');config=await loadSettings(file,safeStorage);
   audioService=new AudioService({directory:join(app.getPath('userData'),'audio'),root,onChange:()=>{if(hub&&!quitting)publish();}});await audioService.init();
   hub=new Hub({settings:config.settings,prepareAlert:(event,profile,signal)=>audioService.prepare(event,profile,signal)});
@@ -124,6 +130,7 @@ async function start(){
     return fromControl?controlState():{snapshot:hub.snapshot()};
   },false);
   handle('test',type=>{if(type==='clear')hub.clear();else for(const event of testEvents(type))hub.ingest(event.kind==='alert'?{...event,testSpeech:true}:event);return controlState();});
+  handle('updates',()=>{void updates.check();return updates.snapshot();});
   handle('copy',type=>{const url=urls()[type];if(!url)throw Error('Browser source unavailable');clipboard.writeText(url);return true;});
   handle('audio',async ({action,text}={})=>{
     if(action==='stop-preview'){previewRequest?.abort();previewRequest=null;return true;}
@@ -150,12 +157,13 @@ async function start(){
   hub.on('change',publish);
   await control.loadFile(join(root,'public','index.html'));await overlay.loadFile(join(root,'public','overlay.html'),{query:{desktop:'1'}});
   registerShortcut();applyOverlay();control.show();publish();
+  updates.start();
   if(config.settings.connection.autoConnect)await connect();
 }
 app.on('window-all-closed',()=>{});
 app.on('before-quit',event=>{
   if(quitting)return;event.preventDefault();quitting=true;clearTimeout(boundsTimer);publish.cancel();globalShortcut.unregisterAll();emotes?.close();hub?.close();
-  previewRequest?.abort();audioPlayer?.close();audioService?.close();
+  updates?.close();previewRequest?.abort();audioPlayer?.close();audioService?.close();
   if(config&&overlay&&!overlay.isDestroyed()){Object.assign(config.settings.overlay,overlay.getBounds());persist().catch(()=>{});}
   Promise.allSettled([connectionManager?.disconnect(),source?.close(),saveQueue,stopSetup()]).finally(()=>{tray?.destroy();app.quit();});
 });

@@ -13,7 +13,14 @@ const shownProfile=()=>appearanceFor(profile(),appearanceTarget);
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3200);}
 function fail(error){toast(error?.message||'Something went wrong.');$('#save-status').textContent='Not saved — please try again.';}
 window.addEventListener('unhandledrejection',event=>{event.preventDefault();fail(event.reason);});
+function renderUpdates(){
+ const u=state.updates;if(!u)return;
+ text('#update-version',`v${u.version}`);
+ text('#update-status',u.message+(u.phase==='downloading'?` ${u.percent}%`:''));
+ $('#check-updates').disabled=['disabled','checking','downloading','ready'].includes(u.phase);
+}
 function renderLive(incoming){
+ if(incoming?.updates)state.updates=incoming.updates;renderUpdates();
  if(incoming?.audioStatus)state.audioStatus=incoming.audioStatus;audioControls.renderStatus(state.audioStatus);
  if(incoming){if('warning' in incoming)state.warning=incoming.warning;state.passwordPersistent=incoming.passwordPersistent??state.passwordPersistent;}
  if(incoming){state.snapshot=incoming.snapshot;state.urls=incoming.urls||state.urls;state.serverError=incoming.serverError??state.serverError;state.shortcutError=incoming.shortcutError??state.shortcutError;state.hasPassword=incoming.hasPassword??state.hasPassword;if(incoming.settings)state.settings.overlay=incoming.settings.overlay;}
@@ -99,5 +106,6 @@ $('#test-chat').onclick=$('#empty-demo').onclick=()=>api.testEvent('chat');$('#t
 $('#open-overlay').onclick=()=>api.windowAction('show');$('#hide-overlay').onclick=()=>api.windowAction('hide');$('#lock-overlay').onclick=()=>api.windowAction(state.settings.overlay.locked?'unlock':'lock');$('#reset-position').onclick=()=>api.windowAction('reset');$('#quit').onclick=()=>api.windowAction('quit');
 $('#connection-form').onsubmit=async e=>{e.preventDefault();state.settings.connection={host:$('#connection-host').value.trim(),port:Number($('#connection-port').value),autoConnect:$('#auto-connect').checked};await save();const password=$('#connection-password').value;const result=await api.connection('connect',password||undefined);state.hasPassword=result.hasPassword;$('#connection-password').value='';renderControls();};
 $('#disconnect').onclick=()=>api.connection('disconnect');
+$('#check-updates').onclick=async()=>{state.updates=await api.checkUpdates();renderUpdates();};
 $('#auto-connect').onchange=()=>{state.settings.connection.autoConnect=$('#auto-connect').checked;save();};
 $('#save-advanced').onclick=async()=>{state.settings.hotkey=$('#hotkey-input').value;state.settings.sourcePort=Number($('#source-port').value);state.settings.overlay.alwaysOnTop=$('#always-on-top').checked;await save();renderControls();toast('Settings saved.');};

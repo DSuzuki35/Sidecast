@@ -6,9 +6,9 @@ Dieses Repository enthält Quellcode und App-Grafiken. Persönliche Stimmaufnahm
 
 ## Starten
 
-**[Sidecast 0.2.8 für Windows herunterladen](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.8/Sidecast-0.2.8-portable.exe)** — signierte portable EXE, kein Installer nötig. Eine ältere laufende Version vorher über das Tray beenden; deine lokalen Einstellungen bleiben erhalten.
+**[Sidecast 0.2.9 für Windows herunterladen](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.9/Sidecast-0.2.9-Setup.exe)** — signierter Windows-x64-Installer mit automatischen Updates. Eine ältere laufende Version vorher über das Tray beenden; deine lokalen Einstellungen und deine Stimme bleiben auf deinem PC. Updates werden beim Start und alle sechs Stunden geprüft, im Hintergrund geladen und erst beim Beenden über **Quit** installiert. Kein automatischer Neustart im Stream. Status und manuelle Suche: **Connection → App updates**.
 
-Die portable Windows-Datei liegt nach `npm run dist` unter `release/Sidecast-0.2.8-portable.exe`. Kein Installer nötig. Alternativ `release/win-unpacked/Sidecast.exe` mit dem gesamten zugehörigen Ordner verwenden.
+`npm run dist` baut den Installer unter `release/Sidecast-0.2.9-Setup.exe`; `npm run dist:signed` verwendet den separaten Ordner `release/0.2.9/`. `npm run dist:portable` erstellt weiterhin eine portable EXE, ohne automatische Updates.
 
 Aus dem Quellcode (Node.js 24 LTS):
 
@@ -141,7 +141,7 @@ Projektaufbau: `src/core/` enthält Ereignisnormalisierung, Profile und Zustand;
 
 ## Signierter Windows-Build
 
-SimplySign Desktop verbinden, dann `npm run dist:signed` ausführen. Das Skript wählt das einzige gültige Code-Signing-Zertifikat mit privatem Schlüssel im persönlichen Windows-Zertifikatspeicher. Bei mehreren Zertifikaten zuvor `SIDECAST_SIGNING_THUMBPRINT` setzen. Es werden keine Schlüssel exportiert oder Passwörter gespeichert. Die App und der portable Launcher erhalten SHA-256-Signaturen und einen RFC-3161-Zeitstempel von Certum. Der Build schlägt bei fehlender Signatur oder ungültiger Abschlussprüfung fehl. `npm run dist` bleibt für lokale unsignierte Entwicklungs-Builds verfügbar.
+SimplySign Desktop verbinden, dann `npm run dist:signed` ausführen. Das Skript wählt das einzige gültige Code-Signing-Zertifikat mit privatem Schlüssel im persönlichen Windows-Zertifikatspeicher. Bei mehreren Zertifikaten zuvor `SIDECAST_SIGNING_THUMBPRINT` setzen. Es werden keine Schlüssel exportiert oder Passwörter gespeichert. Die App und der Installer erhalten SHA-256-Signaturen und einen RFC-3161-Zeitstempel von Certum. Der Build schlägt bei fehlender Signatur oder ungültiger Abschlussprüfung fehl. `npm run dist` bleibt für lokale unsignierte Entwicklungs-Builds verfügbar.
 
 ## Performance
 

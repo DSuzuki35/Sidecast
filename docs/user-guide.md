@@ -136,3 +136,11 @@ If `{message}` is omitted, the attached message is appended automatically. Subst
 | Overlay stuck/off-screen | Unlock via hotkey/tray, Reset overlay position, and use borderless mode. |
 
 AI runtime folders contain `setup.log` and `worker.log`. Read [Privacy](privacy.md) before sharing logs. Report app/Windows versions, affected output, reproduction steps and expected/actual behavior. Never attach source tokens, settings, voice recordings or complete user-data folders.
+
+## Installation and updates
+
+Download the signed Windows x64 setup from [GitHub Releases](https://github.com/DSuzuki35/Sidecast/releases/latest). Quit an older portable copy from its tray menu first, run setup, and choose an installation folder. Launch Sidecast from the Start menu or desktop shortcut. Existing settings, source URLs and locally selected voice are retained. The installer includes no personal recording, generated speech or downloaded AI models.
+
+Installed copies check for stable updates at startup and every six hours, then download in the background. **Connection → App updates** shows the status and a **Check for updates** button. A ready update installs when you choose **Quit** from the tray. Closing the settings window only hides it; it does not install or restart anything. Start Sidecast normally next time. Offline checks fail without interrupting chat; retry when connected. Portable and source builds do not auto-update: install the setup once to enable this.
+
+Windows Settings → Apps can uninstall Sidecast. Your settings and optional local AI data are kept so reinstalls can reuse them; see [Privacy](privacy.md) for manual data cleanup.

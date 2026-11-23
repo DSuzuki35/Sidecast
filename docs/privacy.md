@@ -38,3 +38,7 @@ Saved passwords use Electron's Windows-backed encryption. If it is unavailable, 
 Do not upload `settings.json`, the audio directory, your reference, generated voice clips or complete runtime/user-data folders. Redact tokens, passwords, private paths and unwanted chat identities from screenshots and logs.
 
 To remove voice data, quit Sidecast and remove the specific recording/cache files at the locations above. Back up settings/sounds you want to keep. Removing an AI runtime/model folder requires reinstalling that engine.
+
+## Application updates
+
+Installed Windows copies contact GitHub Releases to check versions and download signed updates. GitHub and its download CDN receive ordinary connection data, including your IP address. Sidecast sends no chat history, settings, voice reference or generated speech with update requests. Updates use public release assets and need no GitHub login. Development, portable and isolated test profiles do not check automatically.

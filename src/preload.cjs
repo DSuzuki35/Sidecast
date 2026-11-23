@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('sidecast',Object.freeze({
   testEvent:type=>ipcRenderer.invoke('sidecast:test',type),
   copySource:type=>ipcRenderer.invoke('sidecast:copy',type),
   audioAction:(action,text)=>ipcRenderer.invoke('sidecast:audio',{action,text}),
+  checkUpdates:()=>ipcRenderer.invoke('sidecast:updates'),
   onState:callback=>{const listener=(_event,state)=>callback(state);ipcRenderer.on('sidecast:changed',listener);return()=>ipcRenderer.removeListener('sidecast:changed',listener);}
 }));

@@ -14,18 +14,21 @@ if (-not $CertificateThumbprint) {
 if ($CertificateThumbprint -notmatch '^[A-Fa-f0-9]{40}$') { throw 'Invalid certificate thumbprint.' }
 $manifest = Get-Content package.json -Raw | ConvertFrom-Json
 $config = $manifest.build
+$outputDirectory = "release/$($manifest.version)"
+$config.directories.output = $outputDirectory
 $config | Add-Member -NotePropertyName forceCodeSigning -NotePropertyValue $true -Force
 $config.win | Add-Member -NotePropertyName signtoolOptions -NotePropertyValue @{
     certificateSha1 = $CertificateThumbprint
     signingHashAlgorithms = @('sha256')
     rfc3161TimeStampServer = 'http://time.certum.pl'
+    publisherName = 'Open Source Developer Daniel Sosulski'
 } -Force
 $configFile = Join-Path (Get-Location) 'build/signing.generated.json'
 try {
     $config | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $configFile -Encoding utf8
-    & node node_modules/electron-builder/out/cli/cli.js --win portable --config $configFile
-    if ($LASTEXITCODE -ne 0) { throw 'Signed build failed. Connect SimplySign Desktop and try again.' }
-    $files = @('release/win-unpacked/Sidecast.exe', "release/Sidecast-$($manifest.version)-portable.exe")
+    & node node_modules/electron-builder/out/cli/cli.js --win nsis --x64 --publish never --config $configFile
+    if ($LASTEXITCODE -ne 0) { throw 'Signed build failed. See the builder error above; signing requires connected SimplySign Desktop.' }
+    $files = @("$outputDirectory/win-unpacked/Sidecast.exe", "$outputDirectory/Sidecast-$($manifest.version)-Setup.exe")
     foreach ($file in $files) {
         $signature = Get-AuthenticodeSignature -LiteralPath $file
         if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $CertificateThumbprint -or -not $signature.TimeStamperCertificate) {

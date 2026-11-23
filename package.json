@@ -1,6 +1,6 @@
 {
   "name": "sidecast",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Your chat. In the game. Streamer.bot desktop overlays and OBS sources.",
   "author": "Sidecast",
   "license": "MIT",
@@ -13,8 +13,9 @@
     "test:ui": "node scripts/smoke.mjs",
     "test:performance": "node scripts/performance.mjs",
     "pack": "electron-builder --win --dir",
-    "dist": "electron-builder --win portable",
-    "dist:signed": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dist-signed.ps1"
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "dist:signed": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dist-signed.ps1",
+    "dist:portable": "electron-builder --win portable --x64 --publish never"
   },
   "build": {
     "appId": "app.sidecast.desktop",
@@ -38,12 +39,39 @@
       "scripts/setup-chatterbox.ps1"
     ],
     "win": {
-      "target": "portable",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico",
-      "signAndEditExecutable": true
+      "signAndEditExecutable": true,
+      "verifyUpdateCodeSignature": true,
+      "signtoolOptions": {
+        "publisherName": "Open Source Developer Daniel Sosulski"
+      }
     },
     "portable": {
       "artifactName": "Sidecast-${version}-portable.exe"
+    },
+    "nsis": {
+      "artifactName": "Sidecast-${version}-Setup.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "DSuzuki35",
+      "repo": "Sidecast",
+      "releaseType": "release"
     }
   },
   "overrides": {
@@ -51,6 +79,7 @@
   },
   "dependencies": {
     "@streamerbot/client": "^2.0.2",
+    "electron-updater": "6.8.11",
     "ws": "^8.23.0"
   },
   "devDependencies": {
