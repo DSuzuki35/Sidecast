@@ -1,0 +1,59 @@
+import {spawn} from 'node:child_process';
+import {readFile,writeFile,mkdir,copyFile,stat,readdir,unlink,rename,utimes} from 'node:fs/promises';
+import {existsSync,openSync,closeSync} from 'node:fs';
+import {join,basename,extname} from 'node:path';
+import {randomUUID,createHash} from 'node:crypto';
+import {speechText} from './core/audio-settings.js';
+
+export function wavDuration(buffer){
+ if(buffer.toString('ascii',0,4)!=='RIFF'||buffer.toString('ascii',8,12)!=='WAVE')throw Error('Invalid WAV audio');
+ let rate=0,size=0;for(let pos=12;pos+8<=buffer.length;){const id=buffer.toString('ascii',pos,pos+4),length=buffer.readUInt32LE(pos+4);if(id==='fmt '&&length>=16&&pos+24<=buffer.length)rate=buffer.readUInt32LE(pos+16);if(id==='data')size=Math.min(length,buffer.length-pos-8);pos+=8+length+(length%2);}
+ if(!rate||!size)throw Error('Empty WAV audio');return size/rate;
+}
+function tone(kind){const rate=24000,duration=kind==='fanfare'?1.2:.55,count=Math.ceil(rate*duration),buffer=Buffer.alloc(44+count*2);buffer.write('RIFF');buffer.writeUInt32LE(buffer.length-8,4);buffer.write('WAVEfmt ',8);buffer.writeUInt32LE(16,16);buffer.writeUInt16LE(1,20);buffer.writeUInt16LE(1,22);buffer.writeUInt32LE(rate,24);buffer.writeUInt32LE(rate*2,28);buffer.writeUInt16LE(2,32);buffer.writeUInt16LE(16,34);buffer.write('data',36);buffer.writeUInt32LE(count*2,40);
+ for(let i=0;i<count;i++){const t=i/rate,note=Math.floor(t/.18),f=kind==='pulse'?330:kind==='fanfare'?[523,659,784,1047][Math.min(3,note)]:[660,880][Math.min(1,note)];const envelope=Math.min(1,t/.012)*Math.pow(1-t/duration,2);buffer.writeInt16LE(Math.round(Math.sin(2*Math.PI*f*t)*envelope*8000),44+i*2);}return buffer;}
+export const powershell=join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+function runWindows(script,request,{signal,children}={}){return new Promise((resolve,reject)=>{
+ if(signal?.aborted)return reject(Error('Cancelled'));
+ const child=spawn(powershell,['-NoProfile','-ExecutionPolicy','Bypass','-File',script],{windowsHide:true,stdio:['pipe','pipe','ignore']});children?.add(child);let output='';
+ const abort=()=>{child.kill();reject(Error('Cancelled'));};signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(()=>{child.kill();reject(Error('Windows TTS timed out'));},20000);
+ const clean=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);children?.delete(child);};child.stdout.setEncoding('utf8');child.stdout.on('data',b=>output+=b);child.on('error',e=>{clean();reject(e);});child.on('close',code=>{clean();try{const result=JSON.parse(output.replace(/^\uFEFF/,''));if(code||!result.ok)throw Error(result.error||'Windows TTS failed');resolve(result);}catch(e){reject(e);}});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(request));
+});}
+
+export class AudioService {
+ constructor({directory,root,onChange=()=>{}}){this.directory=directory;this.root=root.replace('app.asar','app.asar.unpacked');this.onChange=onChange;this.media=join(directory,'media');this.voiceDir=join(directory,'voice');this.runtime=join(process.env.LOCALAPPDATA||directory,'Sidecast','tts');this.python=join(this.runtime,'venv','Scripts','python.exe');this.chatterboxRuntime=join(process.env.LOCALAPPDATA||directory,'Sidecast','chatterbox');this.chatterboxPython=join(this.chatterboxRuntime,'venv','Scripts','python.exe');this.voices=[];this.voiceName='';this.error='';this.busy=0;this.children=new Set();this.jobs=new Map();this.chain=Promise.resolve();this.idle=null;this.worker=null;this.workerEngine=null;this.closing=false;}
+ async init(){await mkdir(this.media,{recursive:true});await mkdir(this.voiceDir,{recursive:true});await Promise.all((await readdir(this.media)).filter(name=>/^(?:(?:pending|preview)-[a-f0-9-]+|tmp[\w-]+)\.wav$/.test(name)).map(name=>unlink(join(this.media,name)).catch(()=>{})));for(const name of ['chime','pulse','fanfare'])await writeFile(join(this.media,`builtin-${name}.wav`),tone(name));try{this.voiceName=JSON.parse(await readFile(join(this.voiceDir,'reference.json'),'utf8')).name||'My voice';}catch{}this.voiceLoad=runWindows(join(this.root,'src','tts-windows.ps1'),{mode:'voices'},{children:this.children}).then(result=>{this.voices=result.voices;if(!this.closing)this.onChange();}).catch(()=>{});return this;}
+ status(){return {voices:this.voices,hasReference:existsSync(join(this.voiceDir,'reference.wav')),voiceName:this.voiceName,qwenInstalled:existsSync(this.python)&&existsSync(join(this.runtime,'setup.json')),qwenLoaded:!!this.worker&&this.workerEngine==='qwen',chatterboxInstalled:existsSync(this.chatterboxPython)&&existsSync(join(this.chatterboxRuntime,'setup.json')),chatterboxLoaded:!!this.worker&&this.workerEngine==='chatterbox',busy:this.busy>0,error:this.error};}
+ async asset(id){if(!/^(?:builtin-(?:chime|pulse|fanfare)|sound-[a-f0-9-]+|tts-[a-f0-9]{64})\.(wav|mp3|ogg)$/.test(id))return null;try{const path=join(this.media,id);const info=await stat(path);if(!info.isFile()||info.size>20*1024*1024)return null;return {data:await readFile(path),type:extname(id)==='.wav'?'audio/wav':extname(id)==='.mp3'?'audio/mpeg':'audio/ogg'};}catch{return null;}}
+ async importSound(path){const extension=extname(path).toLowerCase();if(!['.wav','.mp3','.ogg'].includes(extension)||(await stat(path)).size>20*1024*1024)throw Error('Choose a WAV, MP3 or OGG file under 20 MB.');const id=`sound-${randomUUID()}${extension}`;await copyFile(path,join(this.media,id));return {id,name:basename(path)};}
+ async importReference(path){if((await stat(path)).size>30*1024*1024)throw Error('Choose a WAV recording under 30 MB.');const data=await readFile(path);const duration=wavDuration(data);if(duration<3||duration>30)throw Error('Choose a WAV recording between 3 and 30 seconds.');await writeFile(join(this.voiceDir,'reference.wav'),data);this.voiceName=basename(path);await writeFile(join(this.voiceDir,'reference.json'),JSON.stringify({name:this.voiceName}));this.stopWorker();this.onChange();return this.status();}
+ stopWorker(reason='Voice engine stopped'){clearTimeout(this.idle);const worker=this.worker;this.worker=null;this.workerEngine=null;worker?.kill();for(const job of this.jobs.values())job.reject(Error(reason));this.jobs.clear();}
+ requestQwen(request){return this.requestLocal(request,'qwen');}
+ requestChatterbox(request){return this.requestLocal(request,'chatterbox');}
+ requestLocal(request,engine){return new Promise((resolve,reject)=>{
+  clearTimeout(this.idle);if(this.worker&&this.workerEngine!==engine)this.stopWorker();const runtime=engine==='chatterbox'?this.chatterboxRuntime:this.runtime,python=engine==='chatterbox'?this.chatterboxPython:this.python;if(!this.worker){if(!this.status()[engine+'Installed'])return reject(Error('Install the local voice engine first.'));let log='ignore';try{log=openSync(join(runtime,'worker.log'),'w');}catch{}const worker=spawn(python,['-u',join(this.root,'tts',engine==='chatterbox'?'chatterbox_worker.py':'worker.py'),'--root',this.directory],{windowsHide:true,stdio:['pipe','pipe',log]});if(typeof log==='number')closeSync(log);this.worker=worker;this.workerEngine=engine;worker.stdout.setEncoding('utf8');let partial='';worker.stdout.on('data',chunk=>{partial+=chunk;const lines=partial.split('\n');partial=lines.pop();for(const line of lines)try{const result=JSON.parse(line);const job=this.jobs.get(result.id);if(job){this.jobs.delete(result.id);result.ok?job.resolve(result):job.reject(Error(result.error||'Local voice generation failed'));}}catch{}});worker.on('error',()=>{if(this.worker===worker)this.stopWorker();});worker.on('exit',()=>{if(this.worker===worker)this.stopWorker();});worker.stdin.on('error',()=>{});}
+  const id=randomUUID();const timeout=setTimeout(()=>{this.stopWorker('Local voice generation timed out');},180000);const done=fn=>value=>{clearTimeout(timeout);if(!this.closing&&this.worker)this.idle=setTimeout(()=>{this.stopWorker();this.onChange();},60000);fn(value);};this.jobs.set(id,{resolve:done(resolve),reject:done(reject)});this.worker.stdin.write(JSON.stringify({...request,id})+'\n');
+ });}
+ async prepare(event,profile,signal,{privatePreview=false}={}){const audio=profile.audio,t=audio.types[event.alertType];if(!audio.enabled||!t||signal?.aborted)return null;const clips=[];let duration=0,previewData;const volume=audio.volume*t.volume/10000;
+  if(t.sound!=='none'){const id=t.sound==='custom'?t.soundId:`builtin-${t.sound}.wav`;const asset=id?await this.asset(id):null;if(asset){let seconds=profile.alertDurations[event.alertType];if(asset.type==='audio/wav')try{seconds=Math.min(seconds,wavDuration(asset.data));}catch{}duration=seconds;clips.push({id,volume,maxSeconds:seconds});}}
+  if(t.speak&&speechText(event,t.template).trim()){this.busy++;this.error='';this.onChange();try{
+   const text=speechText(event,t.template);if(text.length>6000)throw Error('Spoken text exceeds 6000 characters. Use {message} only once in the template.');const reference=join(this.voiceDir,'reference.wav');const stamp=audio.engine!=='windows'?(await stat(reference).catch(()=>null))?.mtimeMs:0;if(audio.engine!=='windows'&&!stamp)throw Error('Choose a reference recording for your voice first.');
+   const key=createHash('sha256').update(JSON.stringify(['speech-v2',text,audio.engine,audio.voice,audio.language,stamp,audio.engine==='chatterbox'?audio.expressiveness:null])).digest('hex');const id=privatePreview?`preview-${randomUUID()}.wav`:`tts-${key}.wav`,output=join(this.media,id);
+   const generate=async()=>{
+    signal?.throwIfAborted();if(this.closing)throw Error('Audio service closed');
+    try{const seconds=wavDuration(await readFile(output));if(seconds>0&&seconds<=360){await utimes(output,new Date(),new Date());return seconds;}}catch{}
+    await unlink(output).catch(()=>{});const temporary=join(this.media,`pending-${randomUUID()}.wav`);
+    const abort=()=>this.stopWorker();
+    try{
+     if(audio.engine!=='windows'){signal?.addEventListener('abort',abort,{once:true});signal?.throwIfAborted();await this[audio.engine==='chatterbox'?'requestChatterbox':'requestQwen']({text,language:audio.language,reference,referenceText:'',output:temporary,device:audio.device||'cuda',expressiveness:audio.expressiveness});}
+     else await runWindows(join(this.root,'src','tts-windows.ps1'),{text,output:temporary,voice:audio.voice,language:audio.language},{signal,children:this.children});
+     signal?.throwIfAborted();const seconds=wavDuration(await readFile(temporary));if(seconds>360)throw Error('Generated speech exceeded six minutes. Shorten the template.');await rename(temporary,output);return seconds;
+    }finally{signal?.removeEventListener('abort',abort);await unlink(temporary).catch(()=>{});}
+   };
+   this.chain=this.chain.catch(()=>{}).then(generate);const seconds=await this.chain;clips.push({id,volume});duration+=seconds;if(privatePreview){try{previewData=await readFile(output);}finally{await unlink(output).catch(()=>{});}}else await this.prune(id).catch(()=>{});
+  }catch(error){if(!signal?.aborted&&!this.closing){this.error=error.code==='ENOENT'?'Voice audio is missing. Choose a reference recording.':error.message;this.onChange();}}finally{this.busy--;this.onChange();}}
+  return !signal?.aborted&&clips.length?{clips,duration:t.speak?duration+1:0,output:audio.output,...(privatePreview?{previewData}:{})}:null;
+ }
+ async prune(currentId){const files=(await readdir(this.media)).filter(n=>n!==currentId&&/^tts-[a-f0-9]{64}\.wav$/.test(n));if(files.length<100)return;const dated=(await Promise.all(files.map(async name=>{const info=await stat(join(this.media,name)).catch(()=>null);return info?{name,time:info.mtimeMs}:null;}))).filter(Boolean);dated.sort((a,b)=>a.time-b.time);await Promise.all(dated.slice(0,-99).map(f=>unlink(join(this.media,f.name)).catch(()=>{})));}
+ close(){this.closing=true;this.stopWorker();for(const child of this.children)child.kill();}
+}

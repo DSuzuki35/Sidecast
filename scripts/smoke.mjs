@@ -1,0 +1,140 @@
+import { _electron as electron } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp,readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { WebSocketServer } from 'ws';
+import { once } from 'node:events';
+const fixture=new WebSocketServer({port:0,host:'127.0.0.1'});await once(fixture,'listening');
+fixture.on('connection',ws=>{ws.send(JSON.stringify({request:'Hello',info:{version:'1.0.1'}}));ws.on('message',raw=>{const r=JSON.parse(raw);ws.send(JSON.stringify({id:r.id,status:'ok',info:{version:'1.0.1'},events:{Twitch:['ChatMessage','Follow','ViewerCountUpdate','StreamOffline'],YouTube:['StatisticsUpdated','BroadcastEnded']}}));if(r.request==='Subscribe')ws.send(JSON.stringify({event:{source:'Twitch',type:'ChatMessage'},data:{messageId:'unsafe-text-test',user:{name:'SafetyCheck'},text:'<img src=x onerror=alert(1)>'}}));});});
+const data=await mkdtemp(join(tmpdir(),'sidecast-ui-'));
+await mkdir('test-results',{recursive:true});
+const launchOptions={...(process.env.SIDECAST_EXECUTABLE?{executablePath:process.env.SIDECAST_EXECUTABLE}:{}),args:process.env.SIDECAST_EXECUTABLE?[]:['.'],env:{...process.env,SIDECAST_DATA_DIR:data,SIDECAST_SOURCE_PORT:'0'},timeout:20000};
+let app=await electron.launch(launchOptions);
+async function controlPage(application){
+ await application.firstWindow();const deadline=Date.now()+15000;
+ while(Date.now()<deadline){const page=application.windows().find(w=>w.url().includes('/index.html'));if(page)return page;await new Promise(r=>setTimeout(r,100));}
+ throw Error('Control center not loaded: '+JSON.stringify(await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().map(w=>({url:w.webContents.getURL(),title:w.getTitle()})))));
+}
+try {
+ const page=await controlPage(app);page.setDefaultTimeout(10000); const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try {await page.getByRole('heading',{name:'Your stream. Your style.'}).waitFor();}
+ catch(error){console.error('Windows:',app.windows().map(w=>w.url()),'Renderer errors:',errors);throw error;}
+ await page.locator('#viewers-enabled').check();
+ await page.locator('.preview-stage [data-viewer-platform="twitch"] .viewer-value').filter({hasText:'—'}).waitFor();
+ await page.getByRole('button',{name:'Select Minimal'}).click();
+ await page.waitForFunction(()=>document.querySelector('.preview-stage').dataset.theme==='minimal');
+ await page.getByRole('button',{name:'Select Vice'}).click();
+ await page.waitForFunction(()=>document.querySelector('.preview-stage').dataset.theme==='vice');
+ await page.getByRole('button',{name:'Send test chat'}).click();
+ await page.locator('.preview-stage .chat-message').first().waitFor();
+ await page.evaluate(()=>window.__firstMessage=document.querySelector('.preview-stage .chat-message'));
+ await page.getByRole('button',{name:'Send test chat'}).click();
+ await page.waitForFunction(()=>document.querySelectorAll('.preview-stage .chat-message').length===6);
+ assert.equal(await page.evaluate(()=>window.__firstMessage.isConnected),true,'Existing messages must keep their DOM nodes when new chat arrives');
+ assert.ok(await page.locator('.preview-stage .unicode-emoji').count()>0);
+ assert.ok(await page.locator('.preview-stage [data-highlight="moderator"]').count()>0);
+ assert.equal(await page.evaluate(()=>CSS.supports('corner-shape','superellipse(1.6)')),true);
+ await page.locator('#highlight-users').fill('balkn');await page.locator('#highlight-users').press('Tab');
+ await page.locator('.preview-stage [data-highlight="person"]').first().waitFor();
+ await page.locator('#highlight-mentions').fill('balkn');await page.locator('#highlight-mentions').press('Tab');
+ await page.getByRole('button',{name:'Test raid'}).click();
+ await page.locator('.preview-stage .alert-card').waitFor();
+ const state=await page.evaluate(()=>window.sidecast.getState());assert.equal(state.settings.profiles[0].theme,'vice');
+ await page.evaluate(()=>window.scrollTo(0,0));
+ await page.screenshot({path:'test-results/dashboard.png',fullPage:true,animations:'disabled',scale:'css'});
+ await page.getByRole('button',{name:'Select Minimal'}).click();await page.waitForFunction(()=>document.querySelector('.preview-stage').dataset.theme==='minimal');
+ assert.equal(await page.locator('.preview-stage .alert-card').evaluate(e=>getComputedStyle(e).boxShadow),'none');
+ assert.equal(await page.locator('.preview-stage .alert-name').innerText(),'balkn');
+ await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'test-results/minimal.png',fullPage:true,animations:'disabled',scale:'css'});
+ await page.getByRole('button',{name:'Select Vice'}).click();
+ const sourceCreated=app.waitForEvent('window');
+ await app.evaluate(({BrowserWindow},url)=>{const source=new BrowserWindow({width:440,height:720,show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});source.loadURL(url);},state.urls.combined);
+ const source=await sourceCreated;await source.locator('.chat-message').first().waitFor();
+ assert.equal(await source.evaluate(()=>typeof window.sidecast),'undefined');assert.equal(await source.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
+ await source.screenshot({path:'test-results/source.png',animations:'disabled',omitBackground:true,scale:'css'});
+ await page.getByRole('button',{name:'Open overlay',exact:true}).click();
+ await page.evaluate(()=>window.sidecast.windowAction('lock'));
+ const windows=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().map(w=>({title:w.getTitle(),top:w.isAlwaysOnTop(),visible:w.isVisible(),focusable:w.isFocusable()})));
+ assert.ok(windows.some(w=>w.title==='Sidecast Overlay'&&w.top&&w.visible&&!w.focusable));
+ await page.evaluate(()=>window.sidecast.windowAction('unlock'));
+ const staleSettings=await page.evaluate(async()=>(await window.sidecast.getState()).settings);
+ await page.evaluate(()=>window.sidecast.windowAction('lock'));
+ await page.evaluate(settings=>window.sidecast.saveSettings(settings),staleSettings);
+ assert.equal((await page.evaluate(()=>window.sidecast.getState())).settings.overlay.locked,true,'Saving a stale profile must not unlock the overlay');
+ await page.evaluate(()=>window.sidecast.windowAction('unlock'));
+ await page.getByRole('button',{name:'Connection',exact:true}).click();await page.locator('#connection-host').waitFor({state:'visible'});
+ await page.locator('#connection-port').fill(String(fixture.address().port));await page.locator('#connection-password').fill('fixture-secret');
+ await page.getByRole('button',{name:'Connect',exact:true}).click();await page.locator('#connection-result').filter({hasText:'Streamer.bot connected'}).waitFor();
+ await source.getByText('<img src=x onerror=alert(1)>',{exact:true}).waitFor();assert.equal(await source.locator('.message-body img').count(),0);
+ for(const ws of fixture.clients)ws.send(JSON.stringify({event:{source:'Twitch',type:'ChatMessage'},data:{messageId:'mention-emoji',user:{name:'viewer'},text:'Hi @balkn! 👨‍👩‍👧‍👦 🫶🏽 🇩🇪'}}));
+ await source.locator('[data-highlight="mention"]').waitFor();assert.equal(await source.locator('[data-highlight="mention"] .unicode-emoji').count(),3);
+ for(const ws of fixture.clients){
+  ws.send(JSON.stringify({event:{source:'Twitch',type:'ViewerCountUpdate'},data:{viewerCount:128}}));
+  ws.send(JSON.stringify({event:{source:'YouTube',type:'StatisticsUpdated'},data:{broadcast:{id:'own-stream'},concurrentViewers:0,viewCount:99999}}));
+ }
+ await source.locator('[data-viewer-platform="twitch"] .viewer-value').filter({hasText:'128'}).waitFor();
+ await source.locator('[data-viewer-platform="youtube"] .viewer-value').filter({hasText:/^0$/}).waitFor();
+ await page.locator('[data-page="studio"]').click();
+ await page.getByRole('checkbox',{name:'Show Twitch viewers',exact:true}).uncheck();
+ await source.locator('[data-viewer-platform="twitch"]').waitFor({state:'detached'});
+ assert.equal(await source.locator('[data-viewer-platform="youtube"]').count(),1);
+ await page.getByRole('checkbox',{name:'Show Twitch viewers',exact:true}).check();
+ await source.locator('[data-viewer-platform="twitch"] .viewer-value').filter({hasText:'128'}).waitFor();
+ // This source deliberately stays hidden. Verify its DOM above; repeated compositor captures can stall on Windows.
+ await page.getByRole('button',{name:'Connection',exact:true}).click();
+ await page.getByRole('button',{name:'Remove saved password'}).click({timeout:1000});
+ assert.equal((await page.evaluate(()=>window.sidecast.getState())).hasPassword,false);
+ await page.screenshot({path:'test-results/connection.png',animations:'disabled',scale:'css'});
+ await page.getByRole('button',{name:'Alerts & Events',exact:true}).click();
+ await page.getByRole('slider',{name:'Follows duration',exact:true}).press('Home');
+ await page.getByRole('slider',{name:'Raids duration',exact:true}).evaluate(input=>{input.value='12';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.waitForFunction(async()=>{const p=(await window.sidecast.getState()).settings.profiles[0];return p.alertDurations.follow===3&&p.alertDurations.raid===12;});
+ await page.evaluate(async()=>{await window.sidecast.testEvent('clear');await window.sidecast.testEvent('follow');await window.sidecast.testEvent('raid');});
+ const queuedAlerts=(await page.evaluate(()=>window.sidecast.getState())).snapshot;
+ assert.equal(queuedAlerts.alert.alertType,'follow');assert.equal(queuedAlerts.alert.endsAt-queuedAlerts.alert.startedAt,3000);assert.equal(queuedAlerts.queued,1);
+ await source.waitForFunction(()=>document.querySelector('.alert-card')?.dataset.alert==='follow');
+ await source.waitForFunction(()=>document.querySelector('.alert-card')?.dataset.alert==='raid');
+ const playingRaid=(await page.evaluate(()=>window.sidecast.getState())).snapshot;
+ assert.equal(playingRaid.alert.alertType,'raid');assert.equal(playingRaid.alert.endsAt-playingRaid.alert.startedAt,12000);assert.equal(playingRaid.queued,0);
+ await page.screenshot({path:'test-results/alerts.png',fullPage:true,animations:'disabled',scale:'css'});
+ const overlay=app.windows().find(w=>w.url().includes('/overlay.html')&&w.url().includes('desktop=1'));
+ await overlay.evaluate(()=>window.sidecast.windowAction('resize',{width:300,height:450}));
+ assert.equal(await overlay.evaluate(()=>innerWidth),300);
+ await overlay.waitForFunction(()=>{const e=document.querySelector('.chat-stack');return e.scrollTop+e.clientHeight>=e.scrollHeight-2;},{timeout:2000});
+ assert.equal(await overlay.locator('.chat-stack').evaluate(e=>e.scrollTop+e.clientHeight>=e.scrollHeight-2),true,'Resized overlay must keep newest messages in view');
+ await overlay.screenshot({path:'test-results/overlay-narrow.png',animations:'disabled',omitBackground:true,scale:'css'});
+ await page.getByRole('button',{name:'Studio',exact:false}).click();
+ await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='Sidecast').setSize(1050,800));
+ await page.screenshot({path:'test-results/dashboard-narrow.png',animations:'disabled',scale:'css'});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ const beforeReload=await page.evaluate(()=>window.sidecast.getState());
+ await page.reload();await page.getByRole('heading',{name:'Your stream. Your style.'}).waitFor();
+ assert.equal((await page.evaluate(()=>window.sidecast.getState())).settings.profiles[0].theme,'vice');
+ assert.equal(JSON.parse(await readFile(join(data,'settings.json'),'utf8')).settings.profiles[0].theme,'vice');
+ assert.equal((await page.evaluate(()=>window.sidecast.getState())).urls.combined,beforeReload.urls.combined);
+ assert.deepEqual(errors,[]);
+ // A quiet source must still expire content without periodic repainting.
+ await source.evaluate(async()=>{
+  const {createOverlay}=await import('./shared.js');const box=document.createElement('div');box.id='expiry-check';document.body.append(box);
+  const state=await new Promise(resolve=>{const ws=new WebSocket(location.href.replace('http','ws').replace('/overlay?','/live?'));ws.onmessage=e=>{ws.close();resolve(JSON.parse(e.data));};});
+  const now=Date.now();window.__expiryView=createOverlay(box);window.__expiryView.update({...state,serverTime:now,profile:{...state.profile,fadeSeconds:1,viewerCounts:{enabled:false}},messages:[{id:'expires',platform:'twitch',name:'balkn',time:now-800,text:'Expires while idle',badges:[],fragments:[]}],alert:null});
+ });
+ await source.locator('#expiry-check .chat-box').waitFor({state:'visible'});
+ await source.locator('#expiry-check .chat-box').waitFor({state:'hidden'});
+ await source.evaluate(()=>{window.__expiryView.destroy();document.querySelector('#expiry-check').remove();});
+ // Hidden controls get a fresh snapshot when restored, including missed events.
+ await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='Sidecast').hide());
+ await page.evaluate(()=>window.sidecast.testEvent('clear'));
+ await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.getTitle()==='Sidecast').show());
+ await page.waitForFunction(()=>!document.querySelector('.preview-stage .chat-message'));
+ await overlay.evaluate(()=>window.sidecast.windowAction('resize',{width:333,height:477}));
+ const resizedBounds=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/overlay.html')&&w.webContents.getURL().includes('desktop=1')).getBounds());
+ await app.close();app=await electron.launch(launchOptions);const restarted=await controlPage(app);await restarted.getByRole('heading',{name:'Your stream. Your style.'}).waitFor();
+ const restored=await restarted.evaluate(()=>window.sidecast.getState());assert.equal(restored.settings.profiles[0].theme,'vice');assert.equal(restored.snapshot.messages.length,0);assert.equal(restored.settings.overlay.locked,false);assert.equal(new URL(restored.urls.chat).searchParams.get('token'),new URL(state.urls.chat).searchParams.get('token'));
+ assert.equal(restored.settings.overlay.width,resizedBounds.width);assert.equal(restored.settings.overlay.height,resizedBounds.height);
+ assert.deepEqual(restored.settings.profiles[0].viewerCounts,{enabled:true,platforms:{twitch:true,youtube:true}});
+ assert.equal(restored.settings.profiles[0].alertDurations.follow,3);assert.equal(restored.settings.profiles[0].alertDurations.raid,12);
+ assert.deepEqual(restored.settings.profiles[0].highlights.mentions,['balkn']);assert.deepEqual(restored.settings.profiles[0].highlights.users,['balkn']);
+ console.log('PASS: themes, stable chat nodes, alerts, transparent browser source, native overlay/resize/unlock, real WebSocket rendering, HTML safety, password removal and restart persistence');
+} finally {await app.close();for(const ws of fixture.clients)ws.terminate();await new Promise(r=>fixture.close(r));}

@@ -1,0 +1,61 @@
+{
+  "name": "sidecast",
+  "version": "0.2.8",
+  "description": "Your chat. In the game. Streamer.bot desktop overlays and OBS sources.",
+  "author": "Sidecast",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "test:ui": "node scripts/smoke.mjs",
+    "test:performance": "node scripts/performance.mjs",
+    "pack": "electron-builder --win --dir",
+    "dist": "electron-builder --win portable",
+    "dist:signed": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dist-signed.ps1"
+  },
+  "build": {
+    "appId": "app.sidecast.desktop",
+    "productName": "Sidecast",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "public/**/*",
+      "tts/**/*",
+      "!tts/**/__pycache__/**",
+      "scripts/setup-tts.ps1",
+      "package.json",
+      "scripts/setup-chatterbox.ps1"
+    ],
+    "asarUnpack": [
+      "src/tts-windows.ps1",
+      "tts/**/*",
+      "scripts/setup-tts.ps1",
+      "scripts/setup-chatterbox.ps1"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
+    },
+    "portable": {
+      "artifactName": "Sidecast-${version}-portable.exe"
+    }
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "^11.0.9"
+  },
+  "dependencies": {
+    "@streamerbot/client": "^2.0.2",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "playwright": "^1.65.1"
+  }
+}
