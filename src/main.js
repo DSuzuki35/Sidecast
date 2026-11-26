@@ -16,12 +16,13 @@ import {EmoteService} from './core/emotes.js';
 import {existsSync} from 'node:fs';
 import electronUpdater from 'electron-updater';
 import {UpdateService,updateEligibility} from './updates.js';
+import QRCode from 'qrcode';
 
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 if(process.env.SIDECAST_DATA_DIR)app.setPath('userData',process.env.SIDECAST_DATA_DIR);
 app.setName('Sidecast');
 let control,overlay,tray,hub,source,config,file,connectionManager,audioService,audioPlayer,emotes,setupProcess,previewRequest,quitting=false,shortcutError='',serverError='',audioWindowError='',saveError='',saveQueue=Promise.resolve(),boundsTimer;
-let updates;
+let updates,tabletLinks=[];
 const single=app.requestSingleInstanceLock();
 if(!single)app.quit();
 else {
@@ -32,7 +33,7 @@ function showControl(){if(control&&!control.isDestroyed()){control.show();contro
 function persist(){const snapshot={settings:structuredClone(config.settings),password:config.password,token:config.token,persistenceBlocked:config.persistenceBlocked};saveQueue=saveQueue.catch(()=>{}).then(()=>saveSettings(file,snapshot,safeStorage)).then(()=>{if(saveError){saveError='';publish();}});return saveQueue;}
 function urls(){if(!source)return {};return {...Object.fromEntries(['chat','alerts','combined'].map(mode=>[mode,`${source.origin}/overlay?token=${config.token}&mode=${mode}`])),audio:`${source.origin}/audio?token=${config.token}`};}
 function audioStatus(){return {...audioService?.status(),error:[audioService?.error,audioWindowError].filter(Boolean).join(' '),installing:!!setupProcess};}
-function controlState(){return {settings:config.settings,snapshot:hub.snapshot(),urls:urls(),audioStatus:audioStatus(),updates:updates?.snapshot(),hasPassword:!!config.password,passwordPersistent:safeStorage.isEncryptionAvailable(),shortcutError,serverError,warning:[config.warning,saveError].filter(Boolean).join(' ')};}
+function controlState(){return {settings:config.settings,snapshot:hub.snapshot(),urls:urls(),tabletLinks,audioStatus:audioStatus(),updates:updates?.snapshot(),hasPassword:!!config.password,passwordPersistent:safeStorage.isEncryptionAvailable(),shortcutError,serverError,warning:[config.warning,saveError].filter(Boolean).join(' ')};}
 function sendState(win,state){try{if(!win.webContents.isDestroyed())win.webContents.send('sidecast:changed',state);}catch{/* A closing or crashed renderer is refreshed on its next state request. */}}
 const publish=coalesce(()=>{
  if(control&&!control.isDestroyed()&&control.isVisible()&&!control.isMinimized())sendState(control,controlState());
@@ -62,8 +63,15 @@ function initialBounds(){
 }
 async function startServer(){
   audioPlayer?.close();
-  if(source){await source.close();source=null;}serverError='';
-  try{source=await createSourceServer({hub,publicDir:join(root,'public'),port:process.env.SIDECAST_SOURCE_PORT!==undefined?Number(process.env.SIDECAST_SOURCE_PORT):config.settings.sourcePort,token:config.token,audio:audioService});}
+  if(source){await source.close();source=null;}serverError='';tabletLinks=[];
+  try{
+    source=await createSourceServer({hub,publicDir:join(root,'public'),port:process.env.SIDECAST_SOURCE_PORT!==undefined?Number(process.env.SIDECAST_SOURCE_PORT):config.settings.sourcePort,token:config.token,audio:audioService,lanEnabled:config.settings.lanEnabled});
+    tabletLinks=await Promise.all(source.lanOrigins.map(async ({name,origin})=>{
+      const url=`${origin}/overlay?token=${config.token}&mode=chat&tablet=1`;
+      const qr=await QRCode.toDataURL(url,{width:280,margin:4,errorCorrectionLevel:'M'}).catch(()=>null);
+      return {name,url,qr};
+    }));
+  }
   catch{serverError=`Browser source: port ${config.settings.sourcePort} is unavailable. Choose a different port under Connection.`;}
 }
 async function syncAudioWindow(){
@@ -106,7 +114,7 @@ async function start(){
     const previous=config.settings;const next=normalizeSettings(input);
     // Bounds belong to the actual window; stale controls must not move it.
     Object.assign(next.overlay,overlay.getBounds(),{visible:previous.overlay.visible,locked:previous.overlay.locked});config.settings=next;
-    if(next.sourcePort!==previous.sourcePort)await startServer();
+    if(next.sourcePort!==previous.sourcePort||next.lanEnabled!==previous.lanEnabled)await startServer();
     if(next.hotkey!==previous.hotkey)registerShortcut();if(next.overlay.alwaysOnTop!==previous.overlay.alwaysOnTop)applyOverlay();hub.updateSettings(next);await persist();await syncAudioWindow();return controlState();
   });
   handle('connection',async ({action,password}={})=>{
@@ -131,7 +139,7 @@ async function start(){
   },false);
   handle('test',type=>{if(type==='clear')hub.clear();else for(const event of testEvents(type))hub.ingest(event.kind==='alert'?{...event,testSpeech:true}:event);return controlState();});
   handle('updates',()=>{void updates.check();return updates.snapshot();});
-  handle('copy',type=>{const url=urls()[type];if(!url)throw Error('Browser source unavailable');clipboard.writeText(url);return true;});
+  handle('copy',type=>{const url=typeof type==='string'&&/^tablet:\d+$/.test(type)?tabletLinks[Number(type.slice(7))]?.url:urls()[type];if(!url)throw Error('Browser source unavailable');clipboard.writeText(url);return true;});
   handle('audio',async ({action,text}={})=>{
     if(action==='stop-preview'){previewRequest?.abort();previewRequest=null;return true;}
     if(action==='preview'){

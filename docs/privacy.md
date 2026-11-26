@@ -26,8 +26,8 @@ Voice-preview temporary files are removed after being read for local playback. T
 ## Connections and access
 
 - Sidecast connects to your configured Streamer.bot server.
-- Browser sources bind only to `127.0.0.1` and require the URL token. Keep that token private.
-- Source routes do not expose the private reference recording. Generated alert audio is available to the authenticated local audio source.
+- Browser sources default to `127.0.0.1`. Optional **Tablet / LAN access** binds IPv4 and accepts only loopback/private IPv4 clients with an exact local Host/Origin and the URL token. Keep that token private. QR images are generated locally; no QR service receives the URL.
+- Source routes do not expose the private reference recording. Generated alert audio is available to the authenticated audio source.
 - AI setup downloads packages/models. Supported inference runs locally afterward; there is no cloud voice-upload step.
 - Emote catalog/image requests contact public providers/CDNs. Channel catalog requests use channel identifiers; event-provided HTTPS images may use other hosts.
 
@@ -42,3 +42,5 @@ To remove voice data, quit Sidecast and remove the specific recording/cache file
 ## Application updates
 
 Installed Windows copies contact GitHub Releases to check versions and download signed updates. GitHub and its download CDN receive ordinary connection data, including your IP address. Sidecast sends no chat history, settings, voice reference or generated speech with update requests. Updates use public release assets and need no GitHub login. Development, portable and isolated test profiles do not check automatically.
+
+LAN sharing uses HTTP/WebSocket on the local network, not encrypted HTTPS. Use it only on a trusted network. A token holder with LAN access can view stream content and generated alert media, but cannot control the app or retrieve the private reference recording. Disable sharing to close remote access. Local OBS URLs stay available. Sidecast does not change your router or firewall automatically.

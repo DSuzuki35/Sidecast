@@ -38,7 +38,7 @@ export function normalizeSettings(input = {}) {
       host: typeof s.connection?.host === 'string' && /^[a-zA-Z0-9.-]{1,253}$/.test(s.connection.host) ? s.connection.host : '127.0.0.1',
       port: port(s.connection?.port,8080), autoConnect: bool(s.connection?.autoConnect,false)
     },
-    sourcePort: port(s.sourcePort,3131), hotkey: typeof s.hotkey === 'string' && s.hotkey.length < 100 && s.hotkey.trim() ? s.hotkey.trim() : 'Control+Shift+Space',
+    sourcePort: port(s.sourcePort,3131), lanEnabled:bool(s.lanEnabled,false), hotkey: typeof s.hotkey === 'string' && s.hotkey.length < 100 && s.hotkey.trim() ? s.hotkey.trim() : 'Control+Shift+Space',
     overlay: { visible: bool(s.overlay?.visible,false), locked: bool(s.overlay?.locked,false), alwaysOnTop: bool(s.overlay?.alwaysOnTop,true),
       x: Number.isFinite(s.overlay?.x) ? s.overlay.x : null, y: Number.isFinite(s.overlay?.y) ? s.overlay.y : null,
       width: Math.round(number(s.overlay?.width,400,280,1600)), height: Math.round(number(s.overlay?.height,650,240,1800)) }

@@ -22,7 +22,7 @@ const privateFiles=files.filter(p=>/\.(wav|mp3|flac|ogg|opus|m4a|aac|mp4|safeten
 assert.deepEqual(privateFiles,[],'Private data must never be packaged');
 const packagedManifest=JSON.parse(asar.extractFile(archive,'package.json'));
 for(const key of ['name','version','main','type','dependencies'])assert.deepEqual(packagedManifest[key],manifest[key]);
-for(const p of ['src/main.js','src/updates.js','src/preload.cjs','public/app.js','public/index.html'])assert.ok(asar.extractFile(archive,p).equals(await readFile(p)),`Packaged ${p} differs from source`);
+for(const p of ['src/main.js','src/updates.js','src/network.js','src/server.js','src/core/settings.js','src/preload.cjs','public/app.js','public/index.html','public/overlay.js','public/overlay.html','public/styles.css'])assert.ok(asar.extractFile(archive,join(...p.split('/'))).equals(await readFile(p)),`Packaged ${p} differs from source`);
 const checksums=[];
 for(const p of [filename,filename+'.blockmap','latest.yml'])checksums.push(createHash('sha256').update(await readFile(join(directory,p))).digest('hex')+'  '+p);
 await writeFile(join(directory,'SHA256SUMS.txt'),checksums.join('\n')+'\n');

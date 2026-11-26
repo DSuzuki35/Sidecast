@@ -144,3 +144,15 @@ Download the signed Windows x64 setup from [GitHub Releases](https://github.com/
 Installed copies check for stable updates at startup and every six hours, then download in the background. **Connection → App updates** shows the status and a **Check for updates** button. A ready update installs when you choose **Quit** from the tray. Closing the settings window only hides it; it does not install or restart anything. Start Sidecast normally next time. Offline checks fail without interrupting chat; retry when connected. Portable and source builds do not auto-update: install the setup once to enable this.
 
 Windows Settings → Apps can uninstall Sidecast. Your settings and optional local AI data are kept so reinstalls can reuse them; see [Privacy](privacy.md) for manual data cleanup.
+
+## iPad, tablet and phone over Wi-Fi (0.3.0)
+
+1. Open **Browser sources → Tablet / LAN access** in Sidecast.
+2. Enable **Share chat on my local network**. Sharing is off by default.
+3. Scan the QR code with your iPad camera and open it in Safari, or use **Copy tablet URL**. If multiple network adapters appear, use the one connected to your tablet's network.
+
+The page has a dark background, fits portrait and landscape, and shows live connection status. Chat, emotes and compact alerts follow the browser appearance settings; fullscreen alerts still belong to the separate Alerts source. The tablet does not play duplicate sound/TTS. OBS keeps its existing localhost URLs and transparent background. Disabling sharing disconnects tablet clients; the ordinary local sources remain available.
+
+Keep the PC and Sidecast running. Both devices must be on the same LAN; a wired PC and wireless iPad on the same router also work. If Windows Firewall prompts, allow Sidecast on your trusted network. If it does not prompt and the iPad cannot connect, check Windows Security → Firewall & network protection → Allow an app through firewall, and allow the installed Sidecast app for the profile used by your trusted home network. Do not disable the firewall. Guest Wi-Fi or wireless client isolation may prevent devices from connecting. Router port forwarding is not required. Changing the PC's address requires toggling sharing off/on and rescanning the new QR.
+
+The link contains the same access token as your browser sources. Anyone who has it and can reach the LAN service can read stream content, including attached alert messages and generated alert media. Keep it private. QR generation happens entirely on your PC. The private voice reference, settings and control API are never served.

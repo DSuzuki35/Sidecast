@@ -72,3 +72,11 @@ Relevant checks: `node --test test/updates.test.js`, `node scripts/update-smoke.
 Review `git diff --cached` and `git status`. Never stage test outputs, recordings, generated speech, embeddings/models, settings or signing material. Force-adding files bypasses `.gitignore`. Use synthetic event fixtures and redact private data in reports. See [Privacy](privacy.md).
 
 Source uses the MIT license; dependencies and downloaded models retain their own licenses.
+
+## Tablet / LAN sharing
+
+`src/network.js` enumerates private IPv4 interfaces; `src/server.js` binds loopback unless `lanEnabled` is explicitly true. LAN mode accepts private/loopback client addresses and exact enumerated Host headers; WebSocket Origin must match the requested origin. Tokens remain mandatory for pages, media and snapshots. The main process caches locally generated QR images and exposes them only to the trusted control window. No settings or control routes are served. Network changes require toggling sharing to refresh addresses. `tablet=1` selects a dark responsive shell in the shared overlay; it does not add an audio player.
+
+Run `node --test test/network.test.js test/server.test.js` and `node scripts/tablet-smoke.mjs` (requires a private IPv4 interface and `npx playwright install webkit`). The smoke test uses temporary profiles, WebKit at tablet/phone sizes, real LAN-address HTTP/WebSocket access, and verifies toggle persistence, QR generation, chat/alerts, disconnects and unchanged transparent localhost rendering. It cannot prove that a separate physical iPad can cross the user's firewall or Wi-Fi client isolation.
+
+QR generation uses [node-qrcode](https://github.com/soldair/node-qrcode) locally. Release checks and privacy auditing apply to tablet URLs/QR screenshots as they do to OBS source tokens: never publish a real user's access link.

@@ -5,7 +5,7 @@ const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s
 const api=window.sidecast;let state=await api.getState(),toastTimer,revision=0,saveChain=Promise.resolve();
 const view=createOverlay($('#preview-content'));
 let appearanceTarget='desktop';
-let lastActivity='',lastOverlayButton;
+let lastActivity='',lastOverlayButton,lastTabletLinks='';
 const text=(selector,value)=>{const node=$(selector);if(node.textContent!==value)node.textContent=value;};
 const profile=()=>state.settings.profiles.find(p=>p.id===state.settings.activeProfile)||state.settings.profiles[0];
 const appearance=()=>profile().appearance.linked?profile():profile().appearance[appearanceTarget];
@@ -20,6 +20,7 @@ function renderUpdates(){
  $('#check-updates').disabled=['disabled','checking','downloading','ready'].includes(u.phase);
 }
 function renderLive(incoming){
+ if(incoming?.tabletLinks)state.tabletLinks=incoming.tabletLinks;renderTablet();
  if(incoming?.updates)state.updates=incoming.updates;renderUpdates();
  if(incoming?.audioStatus)state.audioStatus=incoming.audioStatus;audioControls.renderStatus(state.audioStatus);
  if(incoming){if('warning' in incoming)state.warning=incoming.warning;state.passwordPersistent=incoming.passwordPersistent??state.passwordPersistent;}
@@ -60,13 +61,26 @@ function renderControls(){
  $('#password-hint').textContent=state.passwordPersistent?'Password is encrypted using Windows.':'Password is kept for this session only.';
  $('#forget-password').hidden=!state.hasPassword;
  $('#hotkey-input').value=state.settings.hotkey;$('#source-port').value=state.settings.sourcePort;$('#always-on-top').checked=state.settings.overlay.alwaysOnTop;$('#hotkey-display').textContent=state.settings.hotkey.replace('Control','Ctrl').split('+').join(' + ');
- renderSources();renderLive();
+ $('#lan-enabled').checked=state.settings.lanEnabled;renderSources();renderLive();
 }
 function rangeOutput(input){if(input.type!=='range')return;const out=$(`output[for="${input.id}"]`);if(out)out.textContent=input.value+' '+input.dataset.unit;input.style.setProperty('--fill',((input.value-input.min)/(input.max-input.min)*100)+'%');}
 function save(){const mine=++revision,payload=structuredClone(state.settings);$('#save-status').textContent='Saving …';saveChain=saveChain.catch(()=>{}).then(()=>api.saveSettings(payload)).then(result=>{if(mine===revision){state={...result};$('#save-status').textContent='Saved · only on this PC';renderLive();renderSources();}return result;});saveChain.catch(fail);return saveChain;}
 async function testAlert(type){await save();await api.testEvent(type);toast(profile().audio.enabled?'Test queued with speech. Local AI may take a moment.':'Visual test queued. Enable alert audio to hear speech.');}
 function changeProfile(key,value){(APPEARANCE_KEYS.includes(key)?appearance():profile())[key]=value;renderControls();return save();}
 function showPage(name){$$('[data-section]').forEach(s=>s.hidden=s.dataset.section!==name);$$('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));if(name==='studio'||name==='alerts')$(`[data-section="${name}"] .page-heading`).after($('.appearance-settings'));$('#breadcrumb').textContent={studio:'Studio',alerts:'Alerts & Events',sources:'Browser sources',connection:'Connection'}[name];window.scrollTo(0,0);}
+function renderTablet(){
+ const links=state.tabletLinks||[],key=JSON.stringify([state.settings.lanEnabled,links]);
+ if(key===lastTabletLinks)return;lastTabletLinks=key;
+ text('#tablet-hint',!state.settings.lanEnabled?'Enable to view your chat on a tablet or phone on the same Wi-Fi.':links.length?'Scan with your iPad camera and open in Safari. Keep Sidecast running. The link grants read-only access to your chat.':'No private IPv4 network found, or the source server could not start. Check your Wi-Fi and the notice above.');
+ $('#tablet-links').replaceChildren(...links.map((link,index)=>{
+  const card=el('div','tablet-link');
+  if(link.qr){const qr=el('img');qr.src=link.qr;qr.alt=`QR code for ${link.name}`;qr.width=280;qr.height=280;card.append(qr);}
+  const info=el('div');info.append(el('h3','',link.name));
+  const input=el('input');input.readOnly=true;input.value=link.url;input.setAttribute('aria-label',`Tablet URL for ${link.name}`);info.append(input);
+  const button=el('button','button','Copy tablet URL');button.onclick=async()=>{await api.copySource(`tablet:${index}`);toast('Tablet URL copied.');};info.append(button);card.append(info);return card;
+ }));
+}
+$('#lan-enabled').onchange=async event=>{const input=event.target;state.settings.lanEnabled=input.checked;input.disabled=true;try{await save();renderTablet();}finally{input.disabled=false;}};
 function renderSources(){
  const defs={chat:['Chat','Chat with compact alert cards when Compact or Both is selected.','chat'],alerts:['Alerts','Fullscreen alerts only. Use Fullscreen or Both; set this source to your canvas size.','spark']};
  $('#source-cards').replaceChildren(...Object.entries(defs).map(([mode,[title,description,icon]])=>{

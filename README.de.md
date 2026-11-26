@@ -6,9 +6,9 @@ Dieses Repository enthält Quellcode und App-Grafiken. Persönliche Stimmaufnahm
 
 ## Starten
 
-**[Sidecast 0.2.9 für Windows herunterladen](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.9/Sidecast-0.2.9-Setup.exe)** — signierter Windows-x64-Installer mit automatischen Updates. Eine ältere laufende Version vorher über das Tray beenden; deine lokalen Einstellungen und deine Stimme bleiben auf deinem PC. Updates werden beim Start und alle sechs Stunden geprüft, im Hintergrund geladen und erst beim Beenden über **Quit** installiert. Kein automatischer Neustart im Stream. Status und manuelle Suche: **Connection → App updates**.
+**[Sidecast 0.3.0 für Windows herunterladen](https://github.com/DSuzuki35/Sidecast/releases/download/v0.3.0/Sidecast-0.3.0-Setup.exe)** — signierter Windows-x64-Installer mit automatischen Updates. Eine ältere laufende Version vorher über das Tray beenden; deine lokalen Einstellungen und deine Stimme bleiben auf deinem PC. Updates werden beim Start und alle sechs Stunden geprüft, im Hintergrund geladen und erst beim Beenden über **Quit** installiert. Kein automatischer Neustart im Stream. Status und manuelle Suche: **Connection → App updates**.
 
-`npm run dist` baut den Installer unter `release/Sidecast-0.2.9-Setup.exe`; `npm run dist:signed` verwendet den separaten Ordner `release/0.2.9/`. `npm run dist:portable` erstellt weiterhin eine portable EXE, ohne automatische Updates.
+`npm run dist` baut den Installer unter `release/Sidecast-0.3.0-Setup.exe`; `npm run dist:signed` verwendet den separaten Ordner `release/0.3.0/`. `npm run dist:portable` erstellt weiterhin eine portable EXE, ohne automatische Updates.
 
 Aus dem Quellcode (Node.js 24 LTS):
 
@@ -148,3 +148,9 @@ SimplySign Desktop verbinden, dann `npm run dist:signed` ausführen. Das Skript 
 Ereignisse werden sofort verarbeitet; Fenster und OBS-Quellen erhalten gebündelte Updates spätestens nach rund 50 ms. Verborgene App-Fenster erhalten beim Wiederanzeigen einen aktuellen Stand. Chat-Ausblendung und Alert-Wechsel verwenden gezielte Ablauf-Timer statt permanenter Polling-Schleifen. Nachrichtenelemente bleiben erhalten, die Activity-Liste wird nur bei geänderten Events neu aufgebaut.
 
 Messung auf diesem PC mit 1.000 synthetischen Twitch-Nachrichten: 1.000 → 10 UI-Updates und 999 → 63 ms Renderer-Taskzeit (Version 0.2.0). Der Test prüft auch, dass alle 1.000 Ereignisse verarbeitet werden und die letzten 200 Nachrichten erhalten bleiben. Das ist ein lokaler Lasttest mit separatem Testprofil, keine FPS-Messung in einem Spiel. Details stehen in `docs/performance-review.md`.
+
+## iPad / Tablet im selben WLAN
+
+Ab 0.3.0 unter **Browser sources → Tablet / LAN access** die Option **Share chat on my local network** einschalten. QR-Code mit der iPad-Kamera scannen und in Safari öffnen oder **Copy tablet URL** verwenden. Chat, Emotes und kompakte Alerts bleiben synchron. Die Tablet-Seite hat einen dunklen Hintergrund und eine Verbindungsanzeige; Audio bleibt am eingestellten Ausgang. Die bisherigen OBS-URLs bleiben unverändert.
+
+PC und Sidecast müssen laufen. Falls Windows nachfragt, Sidecast für dein vertrauenswürdiges Netzwerk erlauben. Gast-WLAN kann Geräte voneinander isolieren. Bei einer neuen PC-IP Freigabe aus- und einschalten, dann den neuen QR-Code scannen. Der Link enthält den Zugriffstoken; nicht öffentlich teilen. Keine Portweiterleitung am Router nötig.

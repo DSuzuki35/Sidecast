@@ -8,12 +8,13 @@ A local Windows overlay for Streamer.bot, with themed alerts, transparent OBS br
 
 ## Windows download
 
-**[Download Sidecast 0.2.9 for Windows](https://github.com/DSuzuki35/Sidecast/releases/download/v0.2.9/Sidecast-0.2.9-Setup.exe)** — signed Windows x64 installer with automatic updates.
+**[Download Sidecast 0.3.0 for Windows](https://github.com/DSuzuki35/Sidecast/releases/download/v0.3.0/Sidecast-0.3.0-Setup.exe)** — signed Windows x64 installer with automatic updates.
 
-Quit any older Sidecast instance from the tray before installing. Your local settings and private voice stay on your PC. Installed copies check for updates at startup and every six hours, download them automatically, and install when you choose **Quit** from the tray. No automatic restart during your stream. **Connection → App updates** shows progress and offers a manual check. [Release notes and checksums](https://github.com/DSuzuki35/Sidecast/releases/tag/v0.2.9).
+Quit any older Sidecast instance from the tray before installing. Your local settings and private voice stay on your PC. Installed copies check for updates at startup and every six hours, download them automatically, and install when you choose **Quit** from the tray. No automatic restart during your stream. **Connection → App updates** shows progress and offers a manual check. [Release notes and checksums](https://github.com/DSuzuki35/Sidecast/releases/tag/v0.3.0).
 
 ## Features
 
+- Optional tablet/phone view over your local Wi-Fi, with a locally generated QR code.
 - Resizable, borderless, always-on-top overlay with click-through mode.
 - Grid (iRacing), Endurance (LMU), Vice (GTA6-inspired), and Minimal themes.
 - Separate desktop/browser appearance with synchronized contents.
@@ -44,7 +45,7 @@ Start Streamer.bot's WebSocket server, then connect from Sidecast's **Connection
 npm run dist
 ```
 
-The output is `release/Sidecast-0.2.9-Setup.exe`. Signed builds use `release/0.2.9/` to avoid overwriting a running folder build. `npm run dist:portable` builds a portable EXE without automatic updates. Developer builds are unsigned unless you configure your own signing certificate. Prebuilt downloads are distributed through GitHub Releases, separately from the source tree.
+The output is `release/Sidecast-0.3.0-Setup.exe`. Signed builds use `release/0.3.0/` to avoid overwriting a running folder build. `npm run dist:portable` builds a portable EXE without automatic updates. Developer builds are unsigned unless you configure your own signing certificate. Prebuilt downloads are distributed through GitHub Releases, separately from the source tree.
 
 ## Your voice stays local
 

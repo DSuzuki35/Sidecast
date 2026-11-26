@@ -1,6 +1,6 @@
 {
   "name": "sidecast",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "description": "Your chat. In the game. Streamer.bot desktop overlays and OBS sources.",
   "author": "Sidecast",
   "license": "MIT",
@@ -80,6 +80,7 @@
   "dependencies": {
     "@streamerbot/client": "^2.0.2",
     "electron-updater": "6.8.11",
+    "qrcode": "1.5.4",
     "ws": "^8.23.0"
   },
   "devDependencies": {
